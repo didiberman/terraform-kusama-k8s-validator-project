@@ -226,6 +226,62 @@ ArgoCD performs rolling updates by default:
 
 > ⚠️ **Important**: For critical runtime upgrades, update validators **before** the on-chain upgrade deadline!
 
+## Observability
+
+### Deploy Monitoring Stack
+
+```bash
+kubectl apply -f argocd/monitoring.yaml
+kubectl apply -f argocd/alerts.yaml
+```
+
+This deploys:
+- **Prometheus** - Metrics collection
+- **Grafana** - Dashboards (pre-loaded with Polkadot dashboard)
+- **Alertmanager** - Alert routing
+
+### Access Grafana
+
+```bash
+# Port forward
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
+
+# Open http://localhost:3000
+# Default: admin / admin
+```
+
+### Key Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `substrate_block_height` | Current block height |
+| `substrate_sub_libp2p_peers_count` | Connected peers |
+| `substrate_sub_libp2p_is_major_syncing` | Sync status |
+| `substrate_proposer_block_constructed_count` | Blocks produced |
+
+### Alerts Configured
+
+| Alert | Severity | Condition |
+|-------|----------|-----------|
+| `ValidatorDown` | Critical | No metrics for 5 min |
+| `ValidatorNotSynced` | Warning | Syncing > 15 min |
+| `LowPeerCount` | Warning | < 10 peers |
+| `DiskSpaceLow` | Critical | < 10% disk free |
+
+### Configure Notifications
+
+Edit `argocd/monitoring.yaml` to add Slack/PagerDuty:
+
+```yaml
+alertmanager:
+  config:
+    receivers:
+      - name: 'slack'
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/...'
+            channel: '#validator-alerts'
+```
+
 ## Requirements
 
 - Terraform >= 1.0

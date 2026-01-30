@@ -1,0 +1,83 @@
+# Prometheus Alerting Rules for Kusama Validators
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kusama-validator-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: validator-health
+      rules:
+        # Validator not synced
+        - alert: ValidatorNotSynced
+          expr: substrate_sub_libp2p_is_major_syncing == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Validator {{ $labels.instance }} is syncing"
+            description: "Validator has been syncing for more than 15 minutes"
+
+        # Validator offline (no metrics)
+        - alert: ValidatorDown
+          expr: up{job="kusama-validators"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Validator {{ $labels.instance }} is down"
+            description: "No metrics received from validator for 5 minutes"
+
+        # Low peer count
+        - alert: LowPeerCount
+          expr: substrate_sub_libp2p_peers_count < 10
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Validator {{ $labels.instance }} has low peers"
+            description: "Validator has only {{ $value }} peers (expected >10)"
+
+        # Block production issues (for active validators)
+        - alert: NoBlocksProduced
+          expr: increase(substrate_proposer_block_constructed_count[1h]) == 0
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Validator {{ $labels.instance }} not producing blocks"
+            description: "No blocks produced in the last 2 hours"
+
+        # Finality lag
+        - alert: FinalityLag
+          expr: substrate_block_height{status="best"} - substrate_block_height{status="finalized"} > 100
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Finality lag on {{ $labels.instance }}"
+            description: "{{ $value }} blocks behind finalized"
+
+    - name: validator-resources
+      rules:
+        # High memory usage
+        - alert: HighMemoryUsage
+          expr: container_memory_usage_bytes{container="validator"} / container_spec_memory_limit_bytes > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ $labels.pod }}"
+            description: "Memory usage is above 90%"
+
+        # Disk space low
+        - alert: DiskSpaceLow
+          expr: kubelet_volume_stats_available_bytes{persistentvolumeclaim=~"chain-data-.*"} / kubelet_volume_stats_capacity_bytes < 0.1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Low disk space on {{ $labels.persistentvolumeclaim }}"
+            description: "Less than 10% disk space remaining"

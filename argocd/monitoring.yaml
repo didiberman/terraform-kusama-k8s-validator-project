@@ -1,0 +1,91 @@
+# Monitoring Stack for Kusama Validators
+# Deploys Prometheus + Grafana via kube-prometheus-stack
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "55.5.0"
+    helm:
+      values: |
+        # Prometheus configuration
+        prometheus:
+          prometheusSpec:
+            # Scrape all pods with prometheus.io/scrape annotation
+            podMonitorSelectorNilUsesHelmValues: false
+            serviceMonitorSelectorNilUsesHelmValues: false
+            
+            # Retention
+            retention: 30d
+            
+            # Storage
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 50Gi
+
+        # Grafana configuration
+        grafana:
+          enabled: true
+          adminPassword: "admin"  # Change this!
+          
+          # Pre-load Polkadot/Kusama dashboards
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: 'kusama-validators'
+                  orgId: 1
+                  folder: 'Kusama'
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/kusama
+          
+          dashboards:
+            kusama:
+              validator-overview:
+                gnetId: 13840  # Polkadot/Kusama validator dashboard
+                datasource: Prometheus
+
+        # Alertmanager
+        alertmanager:
+          enabled: true
+          config:
+            global:
+              resolve_timeout: 5m
+            route:
+              receiver: 'null'
+              group_by: ['alertname', 'validator']
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 12h
+            receivers:
+              - name: 'null'
+              # Add your notification channels:
+              # - name: 'slack'
+              #   slack_configs:
+              #     - api_url: 'https://hooks.slack.com/...'
+              #       channel: '#alerts'
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
