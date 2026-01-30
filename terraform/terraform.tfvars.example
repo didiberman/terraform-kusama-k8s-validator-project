@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+hcloud_token = "your-hetzner-api-token"
+
+cluster_name = "kusama-validators"
+
+# Hetzner locations for multi-geo (default: all 3)
+# locations = ["fsn1", "nbg1", "hel1"]
+
+# Server types (uncomment to override)
+# control_plane_server_type = "cpx21"
+# worker_server_type = "cpx41"

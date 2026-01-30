@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.validatorName }}
+  labels:
+    app.kubernetes.io/name: kusama-validator
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+spec:
+  serviceName: {{ .Values.validatorName }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kusama-validator
+      app.kubernetes.io/instance: {{ .Values.validatorName }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kusama-validator
+        app.kubernetes.io/instance: {{ .Values.validatorName }}
+        role: validator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9615"
+    spec:
+      {{- if .Values.sessionKeys.autoGenerate }}
+      initContainers:
+        - name: generate-keys
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ ! -f /keystore/.initialized ]; then
+                echo "Generating session keys..."
+                # Keys will be generated via RPC after node starts
+                touch /keystore/.initialized
+              fi
+          volumeMounts:
+            - name: keystore
+              mountPath: /keystore
+      {{- end }}
+      containers:
+        - name: validator
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--chain={{ .Values.chain }}"
+            - "--name={{ .Values.node.name | default .Values.validatorName }}"
+            - "--base-path=/data"
+            - "--keystore-path=/keystore"
+            {{- if .Values.node.validator }}
+            - "--validator"
+            {{- end }}
+            - "--rpc-port=9933"
+            - "--ws-port=9944"
+            - "--rpc-cors=all"
+            - "--rpc-methods={{ .Values.node.rpcMethods }}"
+            - "--rpc-external"
+            - "--ws-external"
+            - "--prometheus-port=9615"
+            - "--prometheus-external"
+            {{- if .Values.node.telemetryUrl }}
+            - "--telemetry-url={{ .Values.node.telemetryUrl }}"
+            {{- end }}
+          ports:
+            - name: p2p
+              containerPort: 30333
+              protocol: TCP
+            - name: rpc
+              containerPort: 9933
+              protocol: TCP
+            - name: ws
+              containerPort: 9944
+              protocol: TCP
+            - name: prometheus
+              containerPort: 9615
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: chain-data
+              mountPath: /data
+            - name: keystore
+              mountPath: /keystore
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- end }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    echo "Validator shutting down gracefully..."
+                    # Allow time for block finalization
+                    sleep 30
+      volumes:
+        - name: keystore
+          emptyDir: {}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: chain-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

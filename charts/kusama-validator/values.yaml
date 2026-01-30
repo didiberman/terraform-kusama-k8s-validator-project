@@ -1,0 +1,93 @@
+# Validator identity
+validatorName: ""
+stashAccount: ""
+controllerAccount: ""
+
+# Chain configuration
+chain: kusama
+# Options: kusama, polkadot, westend (testnet)
+
+# Polkadot binary version
+image:
+  repository: parity/polkadot
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Node configuration
+node:
+  # Validator name shown on telemetry
+  name: ""
+  # Enable validator mode
+  validator: true
+  # RPC settings
+  rpcMethods: unsafe # Required for key injection, restrict after setup
+  # Telemetry
+  telemetryUrl: "wss://telemetry.polkadot.io/submit/ 0"
+
+# Resource allocation
+resources:
+  requests:
+    cpu: "4"
+    memory: "8Gi"
+  limits:
+    cpu: "8"
+    memory: "16Gi"
+
+# Persistent storage for chain data
+persistence:
+  enabled: true
+  size: 500Gi
+  storageClass: "" # Use default
+
+# Service configuration
+service:
+  type: ClusterIP
+  p2pPort: 30333
+  rpcPort: 9933
+  wsPort: 9944
+  prometheusPort: 9615
+
+# Expose P2P externally
+p2pNodePort:
+  enabled: true
+  port: 30333 # Will be auto-assigned if empty
+
+# Session keys (managed via Sealed Secrets)
+sessionKeys:
+  # If true, generate keys on startup
+  autoGenerate: true
+  # Secret name containing pre-generated keys
+  existingSecret: ""
+
+# Pod scheduling
+affinity:
+  # Spread validators across nodes
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: kusama-validator
+        topologyKey: kubernetes.io/hostname
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Prometheus monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false # Enable if using Prometheus Operator
+
+# Liveness/Readiness probes
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 30
+  readiness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10

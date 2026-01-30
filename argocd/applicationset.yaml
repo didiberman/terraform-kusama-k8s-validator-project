@@ -1,0 +1,63 @@
+# ArgoCD ApplicationSet for Dynamic Validator Scaling
+#
+# This ApplicationSet watches the validators/ directory in Git.
+# Adding a new YAML file automatically deploys a new validator.
+# Removing a YAML file triggers the validator removal workflow.
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kusama-validators
+  namespace: argocd
+spec:
+  generators:
+    # Git file generator - reads all validator configs
+    - git:
+        repoURL: https://github.com/YOUR_ORG/kusama-validator-platform # TODO: Update
+        revision: main
+        files:
+          - path: "validators/*.yaml"
+
+  template:
+    metadata:
+      name: "validator-{{name}}"
+      labels:
+        app.kubernetes.io/part-of: kusama-validators
+        validator: "{{name}}"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/YOUR_ORG/kusama-validator-platform # TODO: Update
+        targetRevision: main
+        path: charts/kusama-validator
+        helm:
+          valuesObject:
+            validatorName: "{{name}}"
+            stashAccount: "{{stashAccount}}"
+            controllerAccount: "{{controllerAccount}}"
+            chain: "{{chain}}"
+            node:
+              name: "{{name}}"
+            persistence:
+              size: "{{storageSize}}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: validators
+
+      syncPolicy:
+        automated:
+          prune: true # Remove resources when YAML deleted
+          selfHeal: true # Restore if manually changed
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

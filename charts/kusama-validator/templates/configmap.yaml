@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.validatorName }}-scripts
+  labels:
+    app.kubernetes.io/name: kusama-validator
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+data:
+  rotate-keys.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Rotate session keys via RPC
+    # This should be called after the node is fully synced
+    
+    RESPONSE=$(curl -s -H "Content-Type: application/json" \
+      -d '{"id":1, "jsonrpc":"2.0", "method": "author_rotateKeys", "params":[]}' \
+      http://localhost:9933/)
+    
+    KEYS=$(echo $RESPONSE | jq -r '.result')
+    
+    if [ "$KEYS" == "null" ] || [ -z "$KEYS" ]; then
+      echo "ERROR: Failed to rotate keys"
+      echo "Response: $RESPONSE"
+      exit 1
+    fi
+    
+    echo "=== Session Keys Generated ==="
+    echo "Public Keys: $KEYS"
+    echo ""
+    echo "IMPORTANT: You must now call session.setKeys() with these keys"
+    echo "from your controller account on the Kusama network."
+    echo ""
+    echo "Example using polkadot.js:"
+    echo "  api.tx.session.setKeys(keys, proof)"
+    echo "==============================="
+  
+  check-sync.sh: |
+    #!/bin/bash
+    # Check if node is synced
+    
+    RESPONSE=$(curl -s -H "Content-Type: application/json" \
+      -d '{"id":1, "jsonrpc":"2.0", "method": "system_health", "params":[]}' \
+      http://localhost:9933/)
+    
+    IS_SYNCING=$(echo $RESPONSE | jq -r '.result.isSyncing')
+    PEERS=$(echo $RESPONSE | jq -r '.result.peers')
+    
+    echo "Syncing: $IS_SYNCING"
+    echo "Peers: $PEERS"
+    
+    if [ "$IS_SYNCING" == "true" ]; then
+      exit 1
+    fi
+    exit 0
