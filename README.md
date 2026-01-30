@@ -123,6 +123,73 @@ Then submit `session.setKeys(keys, 0x)` from your controller account on [polkado
 | Remove validator | `git rm validators/validator-XXX.yaml && git push` |
 | Rotate keys | `./scripts/rotate-keys.sh validator-XXX` |
 
+## Fast Sync Options
+
+### Warp Sync (Default - Recommended)
+
+Validators use **warp sync** by default, which syncs in ~10 minutes instead of days:
+
+```yaml
+# In values.yaml or validator config
+sync:
+  mode: warp  # Options: warp, fast, full
+```
+
+**How it works:**
+1. Downloads GRANDPA finality proofs (not all blocks)
+2. Fetches latest state directly
+3. Validator ready in minutes
+
+### Snapshot Restore (Optional)
+
+For even faster startup, pre-download a database snapshot:
+
+```yaml
+sync:
+  mode: warp
+  snapshot:
+    enabled: true
+    url: "https://ksm-rocksdb.polkashots.io/snapshot"
+    compression: lz4
+```
+
+**Snapshot providers:**
+- [polkashots.io](https://polkashots.io) - Daily snapshots
+- [stakeworld.io](https://stakeworld.io/docs/snapshots) - Fast mirrors
+
+**How it works:**
+1. Init container downloads snapshot before validator starts
+2. Extracts to `/data` volume
+3. Validator starts with pre-synced database
+4. Skips download if database already exists
+
+## Session Key Generation
+
+Keys are automatically generated when a validator is deployed:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. ArgoCD deploys validator StatefulSet                    │
+│  2. Validator syncs (warp sync ~10 min)                     │
+│  3. PostSync Job waits for RPC ready                        │
+│  4. Job calls author_rotateKeys()                           │
+│  5. Keys printed to logs                                    │
+│  6. YOU submit session.setKeys() on-chain                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**View generated keys:**
+```bash
+kubectl logs -n validators job/validator-001-keygen
+```
+
+**Submit keys on-chain:**
+1. Go to [polkadot.js](https://polkadot.js.org/apps)
+2. Connect to Kusama/Westend
+3. Developer → Extrinsics
+4. Select your **controller** account
+5. Submit: `session.setKeys(keys, 0x)`
+
 ## Requirements
 
 - Terraform >= 1.0
