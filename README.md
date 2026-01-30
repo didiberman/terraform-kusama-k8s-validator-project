@@ -112,21 +112,27 @@ Then submit `session.setKeys(keys, 0x)` from your controller account on [polkado
 ## Project Structure
 
 ```
-├── terraform/              # K3s cluster on Hetzner
+├── terraform/                # K3s cluster on Hetzner
 │   ├── main.tf
 │   ├── variables.tf
-│   └── templates/          # Cloud-init scripts
-├── charts/
-│   └── kusama-validator/   # Helm chart
-├── argocd/
-│   └── applicationset.yaml # Dynamic validator generator
-├── validators/             # Validator configs (GitOps)
+│   ├── terraform.tfvars.example
+│   └── templates/            # Cloud-init bootstrapping
+├── charts/                   # Helm charts
+│   └── kusama-validator/     # Validator StatefulSet + Service
+├── argocd/                   # GitOps Manifests
+│   ├── applicationset.yaml   # Dynamic Validator Generator
+│   ├── monitoring.yaml       # Prometheus + Grafana Stack
+│   ├── alerts.yaml           # AlertManager Rules
+│   ├── dashboard-configmap.yaml # Custom Grafana Dashboard
+│   └── hetzner-autoscaler.yaml # Cluster Autoscaler
+├── validators/               # Validator Configurations (The "State")
 │   └── example.yaml
-└── scripts/                # Helper scripts
-    ├── generate-validator.sh
-    ├── batch-generate-validators.sh
-    ├── update-accounts.sh
-    └── rotate-keys.sh
+└── scripts/                  # Operations Scripts
+    ├── bootstrap-secrets.sh   # Inject secrets to cluster (TOKEN, PASSWORD)
+    ├── generate-validator.sh  # Create single validator config
+    ├── batch-generate-validators.sh # Bulk create validators
+    ├── update-accounts.sh     # Mass-update keys from CSV
+    └── rotate-keys.sh         # Helper for key rotation
 ```
 
 ## Scaling
