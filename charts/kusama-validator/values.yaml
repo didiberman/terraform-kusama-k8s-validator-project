@@ -8,9 +8,12 @@ chain: kusama
 # Options: kusama, polkadot, westend (testnet)
 
 # Polkadot binary version
+# Check releases: https://github.com/paritytech/polkadot-sdk/releases
 image:
   repository: parity/polkadot
-  tag: latest
+  # Pin to a specific version for production!
+  # Examples: v1.7.0, stable, latest
+  tag: stable
   pullPolicy: IfNotPresent
 
 # Node configuration

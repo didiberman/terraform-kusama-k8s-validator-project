@@ -190,6 +190,42 @@ kubectl logs -n validators job/validator-001-keygen
 4. Select your **controller** account
 5. Submit: `session.setKeys(keys, 0x)`
 
+## Version Upgrades
+
+### Upgrade All Validators
+
+Update the image tag in `charts/kusama-validator/values.yaml`:
+
+```yaml
+image:
+  repository: parity/polkadot
+  tag: v1.7.0  # New version
+```
+
+Then push to Git:
+```bash
+git add charts/kusama-validator/values.yaml
+git commit -m "Upgrade polkadot to v1.7.0"
+git push
+# ArgoCD will rolling-update all validators
+```
+
+### Check Available Versions
+```bash
+# View releases
+curl -s https://api.github.com/repos/paritytech/polkadot-sdk/releases | jq '.[].tag_name' | head -10
+```
+
+### Rolling Update Strategy
+
+ArgoCD performs rolling updates by default:
+1. New validator pod starts with new version
+2. Waits for it to be healthy
+3. Terminates old pod
+4. Repeats for each validator
+
+> ⚠️ **Important**: For critical runtime upgrades, update validators **before** the on-chain upgrade deadline!
+
 ## Requirements
 
 - Terraform >= 1.0
