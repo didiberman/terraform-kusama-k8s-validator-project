@@ -24,6 +24,22 @@ node:
   # Telemetry
   telemetryUrl: "wss://telemetry.polkadot.io/submit/ 0"
 
+# Sync configuration - speeds up initial sync dramatically
+sync:
+  # Sync mode: full, fast, warp
+  # - warp: Fastest! Downloads finality proofs (~minutes)
+  # - fast: Downloads recent blocks
+  # - full: Downloads all blocks (slowest, days)
+  mode: warp
+
+  # Database snapshot restore (optional, for even faster startup)
+  snapshot:
+    enabled: false
+    # URL from polkashots.io, stakeworld.io, etc.
+    url: ""
+    # Compression: lz4 or gz
+    compression: lz4
+
 # Resource allocation
 resources:
   requests:

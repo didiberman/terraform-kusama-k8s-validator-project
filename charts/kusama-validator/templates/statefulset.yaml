@@ -22,23 +22,51 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9615"
     spec:
-      {{- if .Values.sessionKeys.autoGenerate }}
       initContainers:
-        - name: generate-keys
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        {{- if .Values.sync.snapshot.enabled }}
+        # Download database snapshot for fast startup
+        - name: snapshot-restore
+          image: alpine:latest
           command:
             - /bin/sh
             - -c
             - |
-              if [ ! -f /keystore/.initialized ]; then
-                echo "Generating session keys..."
-                # Keys will be generated via RPC after node starts
-                touch /keystore/.initialized
+              set -e
+              if [ -f /data/chains/*/db/full/CURRENT ]; then
+                echo "Database already exists, skipping snapshot restore"
+                exit 0
               fi
+              
+              echo "Installing dependencies..."
+              apk add --no-cache curl {{ if eq .Values.sync.snapshot.compression "lz4" }}lz4{{ end }}
+              
+              echo "Downloading snapshot from {{ .Values.sync.snapshot.url }}..."
+              cd /data
+              
+              {{- if eq .Values.sync.snapshot.compression "lz4" }}
+              curl -L "{{ .Values.sync.snapshot.url }}" | lz4 -d | tar -xf -
+              {{- else }}
+              curl -L "{{ .Values.sync.snapshot.url }}" | tar -xzf -
+              {{- end }}
+              
+              echo "Snapshot restored successfully!"
+          volumeMounts:
+            - name: chain-data
+              mountPath: /data
+        {{- end }}
+        {{- if .Values.sessionKeys.autoGenerate }}
+        - name: prepare-keystore
+          image: busybox:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /keystore
+              touch /keystore/.initialized
           volumeMounts:
             - name: keystore
               mountPath: /keystore
-      {{- end }}
+        {{- end }}
       containers:
         - name: validator
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -48,6 +76,7 @@ spec:
             - "--name={{ .Values.node.name | default .Values.validatorName }}"
             - "--base-path=/data"
             - "--keystore-path=/keystore"
+            - "--sync={{ .Values.sync.mode }}"
             {{- if .Values.node.validator }}
             - "--validator"
             {{- end }}
