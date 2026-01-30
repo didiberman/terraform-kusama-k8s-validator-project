@@ -132,7 +132,6 @@ resource "hcloud_server" "control_plane" {
     k3s_token           = random_password.k3s_token.result
     cluster_name        = var.cluster_name
     taint_control_plane = var.taint_control_plane
-    hcloud_token        = var.hcloud_token
   })
 
   network {

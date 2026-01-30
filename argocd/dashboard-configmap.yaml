@@ -1,5 +1,6 @@
 # ConfigMap containing the custom Grafana dashboard
-# This is created separately so it can be managed via GitOps
+# SOURCE OF TRUTH: This ConfigMap defines the dashboard.
+# Do not edit dashboards/kusama-validators.json manually as it has been removed.
 apiVersion: v1
 kind: ConfigMap
 metadata:

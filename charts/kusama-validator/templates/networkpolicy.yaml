@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: validator-deny-ingress
+  namespace: validators
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow P2P traffic (validator to validator)
+  - ports:
+    - protocol: TCP
+      port: 30333
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9615
+  # Allow RPC only from within the cluster (or specifc namespaces if needed)
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 9933
+    - protocol: TCP
+      port: 9944
