@@ -34,20 +34,32 @@ A GitOps-driven platform for dynamically scaling Kusama validators on Hetzner Cl
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your Hetzner API token
+# Edit terraform.tfvars:
+# - Add hcloud_token
+# - Set allowed_ips (Recommended)
+# - Set initial_workers_per_location (Optional)
 
 terraform init
 terraform apply
 ```
 
-### 2. Access the Cluster
+### 2. Bootstrap Secrets (Securely)
+
+Instead of storing secrets in Git, inject them directly into the cluster:
+
+```bash
+# Usage: ./scripts/bootstrap-secrets.sh <hcloud-token> <grafana-password>
+./scripts/bootstrap-secrets.sh "YOUR_HETZNER_TOKEN" "strong-password-123"
+```
+
+### 3. Access the Cluster
 
 ```bash
 export KUBECONFIG=$(pwd)/terraform/kubeconfig
 kubectl get nodes
 ```
 
-### 3. Configure ArgoCD
+### 4. Configure ArgoCD
 
 ```bash
 # Get ArgoCD admin password
@@ -60,9 +72,12 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 # Update the Git repo URL in applicationset.yaml
 # Then apply:
 kubectl apply -f argocd/applicationset.yaml
+
+# Enable Autoscaling (Optional but Recommended)
+kubectl apply -f argocd/hetzner-autoscaler.yaml
 ```
 
-### 4. Add Validators
+### 5. Add Validators
 
 **Single validator:**
 ```bash
