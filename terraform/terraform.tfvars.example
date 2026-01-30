@@ -10,3 +10,10 @@ cluster_name = "kusama-validators"
 # Server types (uncomment to override)
 # control_plane_server_type = "cpx21"
 # worker_server_type = "cpx41"
+
+# Initial scale
+# initial_workers_per_location = 1
+
+# Security
+# Only allow SSH/API from your IP (Recommended!)
+# allowed_ips = ["203.0.113.5/32"]

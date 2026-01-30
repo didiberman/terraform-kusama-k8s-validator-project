@@ -23,7 +23,9 @@ node:
   # Enable validator mode
   validator: true
   # RPC settings
-  rpcMethods: unsafe # Required for key injection, restrict after setup
+  # Note: 'unsafe' is required for key rotation (author_rotateKeys).
+  # Security is handled via ClusterIP (internal only) and Firewall (blocked from internet).
+  rpcMethods: unsafe
   # Telemetry
   telemetryUrl: "wss://telemetry.polkadot.io/submit/ 0"
 

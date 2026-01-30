@@ -78,7 +78,7 @@ resource "hcloud_firewall" "k3s" {
     direction  = "in"
     protocol   = "tcp"
     port       = "22"
-    source_ips = ["0.0.0.0/0", "::/0"]
+    source_ips = var.allowed_ips
   }
 
   # Kubernetes API
@@ -86,7 +86,7 @@ resource "hcloud_firewall" "k3s" {
     direction  = "in"
     protocol   = "tcp"
     port       = "6443"
-    source_ips = ["0.0.0.0/0", "::/0"]
+    source_ips = var.allowed_ips
   }
 
   # K3s metrics
@@ -132,6 +132,7 @@ resource "hcloud_server" "control_plane" {
     k3s_token           = random_password.k3s_token.result
     cluster_name        = var.cluster_name
     taint_control_plane = var.taint_control_plane
+    hcloud_token        = var.hcloud_token
   })
 
   network {
@@ -148,45 +149,49 @@ resource "random_password" "k3s_token" {
   special = false
 }
 
-# Initial Worker Nodes (one per location for bootstrapping)
+# Generate worker nodes based on locations * count
+locals {
+  worker_nodes = flatten([
+    for loc in var.locations : [
+      for i in range(var.initial_workers_per_location) : {
+        name     = "${var.cluster_name}-worker-${loc}-${i + 1}"
+        location = loc
+      }
+    ]
+  ])
+}
+
+# Initial Worker Nodes
 resource "hcloud_server" "initial_workers" {
-  for_each     = toset(var.locations)
-  name         = "${var.cluster_name}-worker-${each.key}"
+  for_each     = { for node in local.worker_nodes : node.name => node }
+  name         = each.value.name
   image        = "ubuntu-22.04"
   server_type  = var.worker_server_type
-  location     = each.key
+  location     = each.value.location
   ssh_keys     = [hcloud_ssh_key.default.id]
   firewall_ids = [hcloud_firewall.k3s.id]
 
   labels = {
     cluster  = var.cluster_name
     role     = "worker"
-    location = each.key
+    location = each.value.location
   }
 
   user_data = templatefile("${path.module}/templates/worker.sh.tpl", {
     k3s_token        = random_password.k3s_token.result
     control_plane_ip = hcloud_server.control_plane.ipv4_address
-    node_labels      = "topology.kubernetes.io/zone=${each.key}"
+    node_labels      = "topology.kubernetes.io/zone=${each.value.location}"
   })
 
   network {
     network_id = hcloud_network.k3s.id
-    ip         = local.worker_ips[each.key]
+    # IP is auto-assigned from subnet
   }
 
   depends_on = [
     hcloud_network_subnet.k3s,
     hcloud_server.control_plane
   ]
-}
-
-locals {
-  worker_ips = {
-    fsn1 = "10.1.0.10"
-    nbg1 = "10.2.0.10"
-    hel1 = "10.3.0.10"
-  }
 }
 
 # Fetch kubeconfig after cluster is ready

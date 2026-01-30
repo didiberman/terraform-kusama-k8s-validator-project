@@ -282,6 +282,52 @@ alertmanager:
             channel: '#validator-alerts'
 ```
 
+## Security
+
+| Feature | Details | Action Required |
+|---------|---------|-----------------|
+| **Firewall** | SSH/API restricted to whitelisted IPs | Set `allowed_ips` in `terraform.tfvars` |
+| **Secrets** | Grafana/ArgoCD credentials encrypted | Use Sealed Secrets or K8s Secrets |
+| **Keys** | Validator keys stored in persistent PVC | Automatic (managed by StatefulSet) |
+| **RPC** | Unsafe RPC blocked from internet | Internal access only (ClusterIP) |
+
+### Restrict Access (Recommended)
+
+In `terraform.tfvars`:
+```hcl
+allowed_ips = ["YOUR_OFFICE_IP/32", "YOUR_HOME_IP/32"]
+```
+
+## Scaling Infrastructure
+
+### Initial Scale (Day 1)
+
+Define initial capacity in `terraform.tfvars`:
+
+```hcl
+# Start with 2 workers per location (Total: 6 workers + 1 CP)
+initial_workers_per_location = 2
+```
+
+### Auto-Scaling (Day 2+)
+
+The cluster automatically provisions new nodes when you add more validators than current capacity allows.
+
+1. **Enable Autoscaler:**
+   ```bash
+   kubectl apply -f argocd/hetzner-autoscaler.yaml
+   ```
+2. **Add Validators:**
+   ```bash
+   ./scripts/batch-generate-validators.sh 10
+   git push
+   ```
+3. **Watch it scale:**
+   - Pods go `Pending`
+   - Autoscaler detects pending pods
+   - Provisions new Hetzner servers
+   - Pods start automatically
+
 ## Requirements
 
 - Terraform >= 1.0

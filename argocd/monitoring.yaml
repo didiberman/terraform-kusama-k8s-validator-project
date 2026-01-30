@@ -37,7 +37,9 @@ spec:
         # Grafana configuration
         grafana:
           enabled: true
-          adminPassword: "admin"  # Change this!
+          # Password managed via Secret (create secret 'grafana-admin' with key 'admin-password')
+          adminPasswordExistingSecret: grafana-admin
+          adminUser: admin
           
           # Pre-load dashboards
           dashboardProviders:

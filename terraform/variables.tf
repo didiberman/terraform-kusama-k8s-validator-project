@@ -18,6 +18,12 @@ variable "locations" {
   default     = ["fsn1", "nbg1", "hel1"]
 }
 
+variable "initial_workers_per_location" {
+  type        = number
+  description = "Number of initial worker nodes to provision per location"
+  default     = 1
+}
+
 # Server Types
 variable "control_plane_server_type" {
   type        = string
@@ -36,4 +42,10 @@ variable "taint_control_plane" {
   type        = bool
   description = "Taint control plane to prevent workloads (recommended)"
   default     = true
+}
+
+variable "allowed_ips" {
+  type        = list(string)
+  description = "List of CIDRs allowed to access SSH and K8s API"
+  default     = ["0.0.0.0/0"]
 }
