@@ -1,0 +1,99 @@
+# Session Key Generation Job
+# This job runs after the validator pod is ready and generates session keys
+# The keys are printed to logs - you must then call session.setKeys() on-chain
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.validatorName }}-keygen
+  labels:
+    app.kubernetes.io/name: kusama-validator
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 3600  # Keep for 1 hour for log inspection
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: keygen
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "=== Session Key Generation for {{ .Values.validatorName }} ==="
+              echo ""
+              
+              # Wait for validator RPC to be ready
+              echo "Waiting for validator RPC endpoint..."
+              VALIDATOR_SVC="{{ .Values.validatorName }}.validators.svc.cluster.local"
+              MAX_RETRIES=60
+              RETRY=0
+              
+              until curl -sf "http://$VALIDATOR_SVC:9933/health" > /dev/null 2>&1; do
+                RETRY=$((RETRY + 1))
+                if [ $RETRY -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Validator not ready after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+                echo "Attempt $RETRY/$MAX_RETRIES - waiting 10s..."
+                sleep 10
+              done
+              
+              echo "Validator RPC is ready!"
+              echo ""
+              
+              # Check sync status
+              echo "Checking sync status..."
+              HEALTH=$(curl -s "http://$VALIDATOR_SVC:9933/health")
+              IS_SYNCING=$(echo $HEALTH | grep -o '"isSyncing":[^,}]*' | cut -d: -f2)
+              PEERS=$(echo $HEALTH | grep -o '"peers":[^,}]*' | cut -d: -f2)
+              
+              echo "  Syncing: $IS_SYNCING"
+              echo "  Peers: $PEERS"
+              echo ""
+              
+              # Generate session keys
+              echo "Generating session keys..."
+              RESPONSE=$(curl -s -H "Content-Type: application/json" \
+                -d '{"id":1, "jsonrpc":"2.0", "method": "author_rotateKeys", "params":[]}' \
+                "http://$VALIDATOR_SVC:9933/")
+              
+              KEYS=$(echo $RESPONSE | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+              
+              if [ -z "$KEYS" ] || [ "$KEYS" = "null" ]; then
+                echo "ERROR: Failed to generate keys"
+                echo "Response: $RESPONSE"
+                exit 1
+              fi
+              
+              echo ""
+              echo "╔══════════════════════════════════════════════════════════════╗"
+              echo "║           SESSION KEYS GENERATED SUCCESSFULLY                ║"
+              echo "╠══════════════════════════════════════════════════════════════╣"
+              echo "║ Validator: {{ .Values.validatorName }}"
+              echo "║ Chain: {{ .Values.chain }}"
+              echo "╠══════════════════════════════════════════════════════════════╣"
+              echo "║ KEYS (copy this entire string):                              ║"
+              echo "╟──────────────────────────────────────────────────────────────╢"
+              echo "$KEYS"
+              echo "╠══════════════════════════════════════════════════════════════╣"
+              echo "║                     NEXT STEPS                               ║"
+              echo "╠══════════════════════════════════════════════════════════════╣"
+              echo "║ 1. Go to: https://polkadot.js.org/apps                       ║"
+              echo "║ 2. Connect to {{ .Values.chain }} network                    ║"
+              echo "║ 3. Developer > Extrinsics                                    ║"
+              echo "║ 4. Select your CONTROLLER account                            ║"
+              echo "║ 5. Submit: session.setKeys(keys, 0x)                         ║"
+              echo "║    - keys: <paste the keys above>                            ║"
+              echo "║    - proof: 0x                                               ║"
+              echo "║ 6. Sign and submit the transaction                           ║"
+              echo "╚══════════════════════════════════════════════════════════════╝"
+              echo ""
+              echo "To view these keys again:"
+              echo "  kubectl logs -n validators job/{{ .Values.validatorName }}-keygen"
+              echo ""
