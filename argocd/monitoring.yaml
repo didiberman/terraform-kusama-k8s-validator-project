@@ -39,7 +39,7 @@ spec:
           enabled: true
           adminPassword: "admin"  # Change this!
           
-          # Pre-load Polkadot/Kusama dashboards
+          # Pre-load dashboards
           dashboardProviders:
             dashboardproviders.yaml:
               apiVersion: 1
@@ -53,10 +53,14 @@ spec:
                   options:
                     path: /var/lib/grafana/dashboards/kusama
           
+          # Load dashboards from ConfigMaps
+          dashboardsConfigMaps:
+            kusama: kusama-validator-dashboard
+          
           dashboards:
             kusama:
-              validator-overview:
-                gnetId: 13840  # Polkadot/Kusama validator dashboard
+              polkadot-community:
+                gnetId: 13840  # Community Polkadot dashboard
                 datasource: Prometheus
 
         # Alertmanager

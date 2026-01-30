@@ -47,6 +47,18 @@ helm install sealed-secrets sealed-secrets/sealed-secrets \
 # Install Hetzner Cloud Controller Manager
 echo "=== Installing Hetzner CCM ==="
 kubectl create namespace hcloud-system --dry-run=client -o yaml | kubectl apply -f -
+
+# Create secret for Hetzner API token
+# This will be updated with actual token via sealed secret or manual secret
+kubectl create secret generic hetzner-cloud \
+  --namespace kube-system \
+  --from-literal=token="${hcloud_token}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Deploy Hetzner Cloud Controller Manager
 kubectl apply -f https://github.com/hetznercloud/hcloud-cloud-controller-manager/releases/latest/download/ccm-networks.yaml
+
+# Deploy Hetzner CSI Driver for persistent volumes
+kubectl apply -f https://raw.githubusercontent.com/hetznercloud/csi-driver/main/deploy/kubernetes/hcloud-csi.yml
 
 echo "=== Bootstrap Complete ==="

@@ -1,0 +1,57 @@
+# Hetzner Cloud Controller Manager + Autoscaler
+# This enables dynamic node provisioning when validators are added
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hetzner-autoscaler
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://kubernetes.github.io/autoscaler
+    chart: cluster-autoscaler
+    targetRevision: "9.34.0"
+    helm:
+      values: |
+        cloudProvider: hetzner
+
+        # Hetzner-specific configuration
+        extraArgs:
+          cloud-provider: hetzner
+          scale-down-enabled: true
+          scale-down-delay-after-add: 10m
+          scale-down-unneeded-time: 5m
+          skip-nodes-with-local-storage: false
+          balance-similar-node-groups: true
+          expander: least-waste
+          node-group-auto-discovery: hcloud:pool-tag=kusama-validators
+
+        # Hetzner API token (from secret)
+        extraEnv:
+          - name: HCLOUD_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: hetzner-cloud
+                key: token
+          - name: HCLOUD_NETWORK
+            value: "kusama-validators-network"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: 100m
+            memory: 300Mi
+          limits:
+            cpu: 500m
+            memory: 500Mi
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

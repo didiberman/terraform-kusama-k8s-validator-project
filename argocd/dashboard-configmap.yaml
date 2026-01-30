@@ -1,0 +1,85 @@
+# ConfigMap containing the custom Grafana dashboard
+# This is created separately so it can be managed via GitOps
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kusama-validator-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  kusama-validators.json: |
+    {
+      "annotations": {"list": []},
+      "description": "Kusama Validator Fleet Overview",
+      "editable": true,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "title": "Validators UP",
+          "type": "stat",
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+            }
+          },
+          "targets": [{"expr": "count(up{job=\"kusama-validators\"} == 1)", "legendFormat": "Up"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "title": "Validators DOWN",
+          "type": "stat",
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+            }
+          },
+          "targets": [{"expr": "count(up{job=\"kusama-validators\"} == 0) or vector(0)", "legendFormat": "Down"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+          "id": 3,
+          "title": "Validators Syncing",
+          "type": "stat",
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {"steps": [{"color": "orange", "value": null}, {"color": "green", "value": 0}]}
+            }
+          },
+          "targets": [{"expr": "count(substrate_sub_libp2p_is_major_syncing == 1) or vector(0)"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+          "id": 4,
+          "title": "Block Height per Validator",
+          "type": "timeseries",
+          "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull"]}},
+          "targets": [{"expr": "substrate_block_height{status=\"best\"}", "legendFormat": "{{instance}}"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 12},
+          "id": 5,
+          "title": "Validator Status Table",
+          "type": "table",
+          "targets": [
+            {"expr": "up{job=\"kusama-validators\"}", "format": "table", "instant": true},
+            {"expr": "substrate_block_height{status=\"best\"}", "format": "table", "instant": true},
+            {"expr": "substrate_sub_libp2p_peers_count", "format": "table", "instant": true}
+          ],
+          "transformations": [
+            {"id": "merge"},
+            {"id": "organize", "options": {"renameByName": {"Value #A": "Status", "Value #B": "Block", "Value #C": "Peers", "instance": "Validator"}}}
+          ]
+        }
+      ],
+      "refresh": "10s",
+      "title": "Kusama Validator Fleet",
+      "uid": "kusama-validators"
+    }
