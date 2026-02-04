@@ -51,7 +51,8 @@ data:
 
         # Health check: TCP connect to P2P port on localhost
         # Using 127.0.0.1 because HAProxy runs as sidecar in same pod
-        server validator 127.0.0.1:{{ .Values.service.p2pPort }} check inter {{ .Values.haproxy.healthCheckInterval }}
+        # Validator uses port 30334 internally when HAProxy is enabled
+        server validator 127.0.0.1:30334 check inter {{ .Values.haproxy.healthCheckInterval }}
 
     # Stats endpoint (internal only)
     frontend stats

@@ -128,12 +128,20 @@ spec:
             - "--rpc-external"
             - "--prometheus-port=9615"
             - "--prometheus-external"
+            {{- if .Values.haproxy.enabled }}
+            # When HAProxy is enabled, use internal port 30334 (HAProxy binds to 30333)
+            - "--port=30334"
+            {{- end }}
             {{- if .Values.node.telemetryUrl }}
             - "--telemetry-url={{ .Values.node.telemetryUrl }}"
             {{- end }}
           ports:
             - name: p2p
+              {{- if .Values.haproxy.enabled }}
+              containerPort: 30334
+              {{- else }}
               containerPort: 30333
+              {{- end }}
               protocol: TCP
             - name: rpc
               containerPort: 9933
