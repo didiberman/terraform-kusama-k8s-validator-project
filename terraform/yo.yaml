@@ -1,0 +1,386 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    prometheus.io/port: "9615"
+    prometheus.io/scrape: "true"
+  creationTimestamp: "2026-02-04T09:22:26Z"
+  generateName: validator-001-
+  generation: 1
+  labels:
+    app.kubernetes.io/instance: validator-001
+    app.kubernetes.io/name: kusama-validator
+    apps.kubernetes.io/pod-index: "0"
+    controller-revision-hash: validator-001-8488cb699d
+    role: validator
+    statefulset.kubernetes.io/pod-name: validator-001-0
+  name: validator-001-0
+  namespace: validators
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: StatefulSet
+    name: validator-001
+    uid: 47a3d5aa-a617-47d0-aaa3-3b4f8a3544e8
+  resourceVersion: "11774"
+  uid: 9b9fe623-257c-4ec8-90de-9b6d0752ee0f
+spec:
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: kusama-validator
+        topologyKey: kubernetes.io/hostname
+  containers:
+  - args:
+    - --chain=westend
+    - --name=validator-001
+    - --base-path=/data
+    - --keystore-path=/keystore
+    - --sync=warp
+    - --validator
+    - --rpc-port=9933
+    - --rpc-cors=all
+    - --rpc-methods=unsafe
+    - --rpc-external
+    - --prometheus-port=9615
+    - --prometheus-external
+    - --telemetry-url=wss://telemetry.polkadot.io/submit/ 0
+    image: parity/polkadot:stable
+    imagePullPolicy: IfNotPresent
+    lifecycle:
+      preStop:
+        exec:
+          command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Validator shutting down gracefully..."
+            # Allow time for block finalization
+            sleep 30
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /health
+        port: rpc
+        scheme: HTTP
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 1
+    name: validator
+    ports:
+    - containerPort: 30333
+      name: p2p
+      protocol: TCP
+    - containerPort: 9933
+      name: rpc
+      protocol: TCP
+    - containerPort: 9615
+      name: prometheus
+      protocol: TCP
+    readinessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /health
+        port: rpc
+        scheme: HTTP
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 1
+    resources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /data
+      name: chain-data
+    - mountPath: /keystore
+      name: chain-data
+      subPath: keystore
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-cz85k
+      readOnly: true
+  - image: haproxy:2.9-alpine
+    imagePullPolicy: IfNotPresent
+    livenessProbe:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      tcpSocket:
+        port: 30333
+      timeoutSeconds: 1
+    name: haproxy
+    ports:
+    - containerPort: 30333
+      hostPort: 30333
+      name: p2p-proxy
+      protocol: TCP
+    - containerPort: 8404
+      name: stats
+      protocol: TCP
+    readinessProbe:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      successThreshold: 1
+      tcpSocket:
+        port: 30333
+      timeoutSeconds: 1
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        add:
+        - NET_BIND_SERVICE
+        drop:
+        - ALL
+      readOnlyRootFilesystem: true
+      runAsGroup: 99
+      runAsNonRoot: true
+      runAsUser: 99
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+      name: haproxy-config
+      readOnly: true
+      subPath: haproxy.cfg
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-cz85k
+      readOnly: true
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  hostname: validator-001-0
+  initContainers:
+  - command:
+    - /bin/sh
+    - -c
+    - |
+      mkdir -p /keystore
+      touch /keystore/.initialized
+    image: busybox:latest
+    imagePullPolicy: Always
+    name: prepare-keystore
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /keystore
+      name: chain-data
+      subPath: keystore
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-cz85k
+      readOnly: true
+  nodeName: kusama-validators-worker-fsn1-1
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Always
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  subdomain: validator-001
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: chain-data
+    persistentVolumeClaim:
+      claimName: chain-data-validator-001-0
+  - configMap:
+      defaultMode: 420
+      name: validator-001-haproxy
+    name: haproxy-config
+  - name: kube-api-access-cz85k
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-04T09:22:28Z"
+    observedGeneration: 1
+    status: "True"
+    type: PodReadyToStartContainers
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-04T09:22:28Z"
+    observedGeneration: 1
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-04T09:22:26Z"
+    message: 'containers with unready status: [validator]'
+    observedGeneration: 1
+    reason: ContainersNotReady
+    status: "False"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-04T09:22:26Z"
+    message: 'containers with unready status: [validator]'
+    observedGeneration: 1
+    reason: ContainersNotReady
+    status: "False"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-04T09:22:26Z"
+    observedGeneration: 1
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - allocatedResources:
+      cpu: 50m
+      memory: 64Mi
+    containerID: containerd://602e7fe269353e2da7e3285188e9af5eda102936d0ec08518dc276886c95fe8d
+    image: docker.io/library/haproxy:2.9-alpine
+    imageID: docker.io/library/haproxy@sha256:3e29449a6beed63262e36104adf531b4e41b359f61937303f5ea8607987b3748
+    lastState: {}
+    name: haproxy
+    ready: true
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    restartCount: 0
+    started: true
+    state:
+      running:
+        startedAt: "2026-02-04T09:22:31Z"
+    user:
+      linux:
+        gid: 99
+        supplementalGroups:
+        - 99
+        uid: 99
+    volumeMounts:
+    - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+      name: haproxy-config
+      readOnly: true
+      recursiveReadOnly: Disabled
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-cz85k
+      readOnly: true
+      recursiveReadOnly: Disabled
+  - allocatedResources:
+      cpu: 500m
+      memory: 2Gi
+    containerID: containerd://b87888153081b4e38ed773b0ede6025c348a0d657e3b81183e8a4f3fc4e7844c
+    image: docker.io/parity/polkadot:stable
+    imageID: docker.io/parity/polkadot@sha256:67da8a3fd2118a6bb5900a65245eab1e8e9631d8b842bf1e96eaff25e4a0c418
+    lastState:
+      terminated:
+        containerID: containerd://b87888153081b4e38ed773b0ede6025c348a0d657e3b81183e8a4f3fc4e7844c
+        exitCode: 1
+        finishedAt: "2026-02-04T09:33:34Z"
+        reason: Error
+        startedAt: "2026-02-04T09:33:34Z"
+    name: validator
+    ready: false
+    resources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+    restartCount: 7
+    started: false
+    state:
+      waiting:
+        message: back-off 5m0s restarting failed container=validator pod=validator-001-0_validators(9b9fe623-257c-4ec8-90de-9b6d0752ee0f)
+        reason: CrashLoopBackOff
+    user:
+      linux:
+        gid: 1000
+        supplementalGroups:
+        - 1000
+        uid: 1000
+    volumeMounts:
+    - mountPath: /data
+      name: chain-data
+    - mountPath: /keystore
+      name: chain-data
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-cz85k
+      readOnly: true
+      recursiveReadOnly: Disabled
+  hostIP: 10.1.0.2
+  hostIPs:
+  - ip: 10.1.0.2
+  initContainerStatuses:
+  - containerID: containerd://e0744294a4034f109b566e259337c9fd8d63b01baf68f728d4f73a9b6923b681
+    image: docker.io/library/busybox:latest
+    imageID: docker.io/library/busybox@sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f
+    lastState: {}
+    name: prepare-keystore
+    ready: true
+    resources: {}
+    restartCount: 0
+    started: false
+    state:
+      terminated:
+        containerID: containerd://e0744294a4034f109b566e259337c9fd8d63b01baf68f728d4f73a9b6923b681
+        exitCode: 0
+        finishedAt: "2026-02-04T09:22:27Z"
+        reason: Completed
+        startedAt: "2026-02-04T09:22:27Z"
+    user:
+      linux:
+        gid: 0
+        supplementalGroups:
+        - 0
+        - 10
+        uid: 0
+    volumeMounts:
+    - mountPath: /keystore
+      name: chain-data
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-cz85k
+      readOnly: true
+      recursiveReadOnly: Disabled
+  observedGeneration: 1
+  phase: Running
+  podIP: 10.42.2.19
+  podIPs:
+  - ip: 10.42.2.19
+  qosClass: Burstable
+  startTime: "2026-02-04T09:22:26Z"

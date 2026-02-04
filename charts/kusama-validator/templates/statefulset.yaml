@@ -23,6 +23,46 @@ spec:
         prometheus.io/port: "9615"
     spec:
       initContainers:
+        # Generate node identity key if not exists (required for validators)
+        - name: generate-node-key
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # Determine chain directory name based on chain parameter
+              case "{{ .Values.chain }}" in
+                kusama) CHAIN_DIR="ksmcc3" ;;
+                polkadot) CHAIN_DIR="polkadot" ;;
+                westend) CHAIN_DIR="westend2" ;;
+                *) CHAIN_DIR="{{ .Values.chain }}" ;;
+              esac
+
+              NETWORK_DIR="/data/chains/${CHAIN_DIR}/network"
+              KEY_FILE="${NETWORK_DIR}/secret_ed25519"
+
+              if [ -f "$KEY_FILE" ]; then
+                echo "Node key already exists at $KEY_FILE, skipping generation"
+                exit 0
+              fi
+
+              echo "Generating node identity key..."
+              mkdir -p "$NETWORK_DIR"
+
+              # Generate the node key
+              polkadot key generate-node-key --file "$KEY_FILE"
+
+              echo "Node key generated successfully at $KEY_FILE"
+
+              # Print the peer ID for reference (useful for setting up reserved peers)
+              echo "Peer ID:"
+              polkadot key inspect-node-key --file "$KEY_FILE"
+          volumeMounts:
+            - name: chain-data
+              mountPath: /data
         {{- if .Values.sync.snapshot.enabled }}
         # Download database snapshot for fast startup
         - name: snapshot-restore

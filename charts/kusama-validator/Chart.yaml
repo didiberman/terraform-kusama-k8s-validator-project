@@ -2,8 +2,8 @@ apiVersion: v2
 name: kusama-validator
 description: Helm chart for deploying Kusama validators with HAProxy reverse proxy
 type: application
-version: 0.2.0
-appVersion: "1.1.0"
+version: 0.2.1
+appVersion: "1.1.1"
 
 keywords:
   - kusama
