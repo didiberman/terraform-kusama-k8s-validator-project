@@ -1,6 +1,6 @@
 # Kusama Validator Platform
 
-A GitOps-driven platform for dynamically scaling Kusama validators on Hetzner Cloud.
+A production-grade, GitOps-driven platform for dynamically scaling Kusama/Polkadot validators on Hetzner Cloud. Built with Terraform, K3s, ArgoCD, and Helm.
 
 ## Architecture
 
@@ -13,19 +13,30 @@ A GitOps-driven platform for dynamically scaling Kusama validators on Hetzner Cl
 │  └── validator-003.yaml  ← Delete file = remove validator   │
 ├─────────────────────────────────────────────────────────────┤
 │              ArgoCD ApplicationSet                          │
-│              (Auto-generates apps from Git)                  │
+│         (Git File Generator - Auto-deploys)                  │
 ├─────────────────────────────────────────────────────────────┤
 │              K3s Cluster (Hetzner Cloud)                     │
-│              fsn1 | nbg1 | hel1 (multi-geo)                 │
+│         fsn1 | nbg1 | hel1 (multi-geo HA)                   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Validator Pods (StatefulSets)                       │   │
+│  │  ├─ Polkadot Node (warp sync)                        │   │
+│  │  ├─ HAProxy Sidecar (P2P rate limiting)              │   │
+│  │  └─ Persistent Volume (Hetzner CSI)                  │   │
+│  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Features
 
-- **Dynamic Scaling**: Add/remove validators by editing Git
-- **Multi-Geo**: Spread across Falkenstein, Nuremberg, Helsinki
-- **Auto Key Generation**: Session keys generated on deployment
-- **GitOps**: ArgoCD syncs from Git automatically
+- **GitOps Workflow**: Add/remove validators by pushing YAML files to Git
+- **Multi-Geo HA**: Automatic distribution across 3 datacenters (fsn1, nbg1, hel1)
+- **Auto Key Generation**: Session keys generated via PostSync ArgoCD hooks
+- **Fast Sync**: Warp sync gets validators ready in ~10 minutes
+- **Anti-Affinity**: No two validators share the same physical node (prevents slashing)
+- **Rate Limiting**: HAProxy sidecar protects P2P from DDoS attacks
+- **Auto-Scaling**: Cluster Autoscaler provisions new nodes when needed (optional)
+- **Monitoring**: Prometheus + Grafana with pre-configured validator dashboards
+- **Reproducible**: Entire infrastructure defined as code (Terraform + Helm)
 
 ## Quick Start
 
