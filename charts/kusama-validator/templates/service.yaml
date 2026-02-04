@@ -17,6 +17,11 @@ spec:
     - name: prometheus
       port: {{ .Values.service.prometheusPort }}
       targetPort: prometheus
+    {{- if .Values.haproxy.enabled }}
+    - name: haproxy-stats
+      port: 8404
+      targetPort: stats
+    {{- end }}
   selector:
     app.kubernetes.io/name: kusama-validator
     app.kubernetes.io/instance: {{ .Values.validatorName }}
@@ -41,25 +46,5 @@ spec:
       {{- end }}
   selector:
     app.kubernetes.io/name: kusama-validator
-    app.kubernetes.io/instance: {{ .Values.validatorName }}
-{{- end }}
----
-{{- if .Values.haproxy.enabled }}
-# HAProxy stats service for Prometheus scraping
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ .Values.validatorName }}-haproxy-stats
-  labels:
-    app.kubernetes.io/name: kusama-validator-haproxy
-    app.kubernetes.io/instance: {{ .Values.validatorName }}
-spec:
-  type: ClusterIP
-  ports:
-    - name: stats
-      port: 8404
-      targetPort: stats
-  selector:
-    app.kubernetes.io/name: kusama-validator-haproxy
     app.kubernetes.io/instance: {{ .Values.validatorName }}
 {{- end }}

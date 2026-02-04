@@ -135,7 +135,54 @@ spec:
                     echo "Validator shutting down gracefully..."
                     # Allow time for block finalization
                     sleep 30
+        {{- if .Values.haproxy.enabled }}
+        # HAProxy sidecar for P2P reverse proxy with rate limiting
+        - name: haproxy
+          image: {{ .Values.haproxy.image.repository }}:{{ .Values.haproxy.image.tag }}
+          imagePullPolicy: {{ .Values.haproxy.image.pullPolicy }}
+          ports:
+            - name: p2p-proxy
+              containerPort: 30333
+              hostPort: {{ .Values.haproxy.hostPort }}
+              protocol: TCP
+            - name: stats
+              containerPort: 8404
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.haproxy.resources | nindent 12 }}
+          volumeMounts:
+            - name: haproxy-config
+              mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+              readOnly: true
+          livenessProbe:
+            tcpSocket:
+              port: 30333
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 30333
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 99
+            runAsGroup: 99
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+        {{- end }}
       volumes:
+        {{- if .Values.haproxy.enabled }}
+        - name: haproxy-config
+          configMap:
+            name: {{ .Values.validatorName }}-haproxy
+        {{- end }}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}

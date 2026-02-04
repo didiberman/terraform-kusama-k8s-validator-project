@@ -45,13 +45,13 @@ data:
         # Log rejected connections
         tcp-request connection silent-drop if { sc0_conn_cur gt {{ .Values.haproxy.rateLimit.maxConnectionsPerIP }} } or { sc0_conn_rate gt {{ .Values.haproxy.rateLimit.connectionsPerSecond }} }
 
-    # Backend: Route to validator P2P service
+    # Backend: Route to validator (localhost - sidecar shares network namespace)
     backend p2p_backend
-        balance roundrobin
         option tcp-check
 
-        # Health check: TCP connect to P2P port
-        server validator {{ .Values.validatorName }}:{{ .Values.service.p2pPort }} check inter {{ .Values.haproxy.healthCheckInterval }}
+        # Health check: TCP connect to P2P port on localhost
+        # Using 127.0.0.1 because HAProxy runs as sidecar in same pod
+        server validator 127.0.0.1:{{ .Values.service.p2pPort }} check inter {{ .Values.haproxy.healthCheckInterval }}
 
     # Stats endpoint (internal only)
     frontend stats

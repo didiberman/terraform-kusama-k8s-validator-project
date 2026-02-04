@@ -12,15 +12,29 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  # Allow P2P traffic from HAProxy pods
-  - from:
-    - podSelector:
-        matchLabels:
-          app.kubernetes.io/name: kusama-validator-haproxy
-    ports:
+  {{- if .Values.haproxy.enabled }}
+  # When HAProxy sidecar is enabled:
+  # - External P2P traffic enters via HAProxy sidecar on hostPort 30333
+  # - HAProxy forwards to validator on localhost (bypasses NetworkPolicy)
+  # - Only allow external access to HAProxy port (30333)
+  - ports:
     - protocol: TCP
       port: 30333
-  # Allow P2P traffic between validators (internal gossip)
+  # Allow HAProxy stats/metrics from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8404
+  {{- else }}
+  # Legacy mode: Allow P2P traffic directly (no HAProxy)
+  - ports:
+    - protocol: TCP
+      port: 30333
+  {{- end }}
+  # Allow P2P traffic between validators (internal gossip via ClusterIP)
   - from:
     - podSelector:
         matchLabels:
@@ -42,40 +56,9 @@ spec:
     ports:
     - protocol: TCP
       port: 9933
----
-{{- if .Values.haproxy.enabled }}
-# Network policy for HAProxy pods
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ .Values.validatorName }}-haproxy-policy
-  labels:
-    app.kubernetes.io/name: kusama-validator-haproxy
-    app.kubernetes.io/instance: {{ .Values.validatorName }}
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: kusama-validator-haproxy
-      app.kubernetes.io/instance: {{ .Values.validatorName }}
-  policyTypes:
-  - Ingress
-  ingress:
-  # Allow P2P from anywhere (external internet)
-  - ports:
-    - protocol: TCP
-      port: 30333
-  # Allow stats/metrics from monitoring namespace
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: monitoring
-    ports:
-    - protocol: TCP
-      port: 8404
-  # Allow stats access from within namespace
+  # Allow HAProxy stats access from within namespace
   - from:
     - podSelector: {}
     ports:
     - protocol: TCP
       port: 8404
-{{- end }}
