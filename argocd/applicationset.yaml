@@ -41,6 +41,13 @@ spec:
               name: "{{name}}"
             persistence:
               size: "{{storageSize}}"
+            resources:
+              requests:
+                cpu: "500m"
+                memory: "2Gi"
+              limits:
+                cpu: "2"
+                memory: "4Gi"
 
       destination:
         server: https://kubernetes.default.svc
