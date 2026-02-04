@@ -11,4 +11,4 @@ controllerAccount: "CONTROLLER_ACCOUNT_FOR_validator-001"
 chain: westend
 
 # Storage size
-storageSize: 100Gi
+storageSize: 50Gi
