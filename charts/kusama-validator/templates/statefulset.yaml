@@ -72,27 +72,60 @@ spec:
             - -c
             - |
               set -e
+              
+              # Check if database already exists
               if [ -f /data/chains/*/db/full/CURRENT ]; then
-                echo "Database already exists, skipping snapshot restore"
+                echo "✓ Database already exists, skipping snapshot restore"
                 exit 0
               fi
               
-              echo "Installing dependencies..."
-              apk add --no-cache curl {{ if eq .Values.sync.snapshot.compression "lz4" }}lz4{{ end }}
+              echo "=== Snapshot Restore for {{ .Values.validatorName }} ==="
+              echo "Chain: {{ .Values.chain }}"
+              echo "Source: {{ .Values.sync.snapshot.url }}"
+              echo ""
               
-              echo "Downloading snapshot from {{ .Values.sync.snapshot.url }}..."
+              # Install dependencies
+              echo "Installing dependencies..."
+              apk add --no-cache curl pv {{ if eq .Values.sync.snapshot.compression "lz4" }}lz4{{ end }}{{ if eq .Values.sync.snapshot.compression "zstd" }}zstd{{ end }}
+              
+              # Download and extract with progress
+              echo "Downloading and extracting snapshot..."
+              echo "This may take 10-30 minutes depending on chain size and network speed"
+              echo ""
+              
               cd /data
               
               {{- if eq .Values.sync.snapshot.compression "lz4" }}
-              curl -L "{{ .Values.sync.snapshot.url }}" | lz4 -d | tar -xf -
+              # LZ4 compression (fastest)
+              curl -L --progress-bar "{{ .Values.sync.snapshot.url }}" | pv -pterb | lz4 -d | tar -xf -
+              {{- else if eq .Values.sync.snapshot.compression "zstd" }}
+              # Zstandard compression (good balance)
+              curl -L --progress-bar "{{ .Values.sync.snapshot.url }}" | pv -pterb | zstd -d | tar -xf -
               {{- else }}
-              curl -L "{{ .Values.sync.snapshot.url }}" | tar -xzf -
+              # Gzip compression (default)
+              curl -L --progress-bar "{{ .Values.sync.snapshot.url }}" | pv -pterb | tar -xzf -
               {{- end }}
               
-              echo "Snapshot restored successfully!"
+              # Verify extraction
+              if [ -f /data/chains/*/db/full/CURRENT ]; then
+                echo ""
+                echo "✓ Snapshot restored successfully!"
+                echo "Database size: $(du -sh /data/chains/*/db | cut -f1)"
+              else
+                echo ""
+                echo "✗ ERROR: Snapshot extraction failed - database not found"
+                exit 1
+              fi
           volumeMounts:
             - name: chain-data
               mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
         {{- end }}
         {{- if .Values.sessionKeys.autoGenerate }}
         - name: prepare-keystore

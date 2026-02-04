@@ -1,0 +1,459 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      prometheus.io/port: "9615"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2026-02-04T14:41:17Z"
+    generateName: validator-001-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: validator-001
+      app.kubernetes.io/name: kusama-validator
+      apps.kubernetes.io/pod-index: "0"
+      controller-revision-hash: validator-001-585d4cd4d8
+      role: validator
+      statefulset.kubernetes.io/pod-name: validator-001-0
+    name: validator-001-0
+    namespace: validators
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: StatefulSet
+      name: validator-001
+      uid: 83b500f6-e586-45d3-bf7b-eae7c1ed43b4
+    resourceVersion: "3461"
+    uid: c6d21493-7bcd-4945-b286-59447afe23df
+  spec:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: kusama-validator
+          topologyKey: kubernetes.io/hostname
+    containers:
+    - args:
+      - --chain=westend
+      - --name=validator-001
+      - --base-path=/data
+      - --keystore-path=/keystore
+      - --sync=warp
+      - --validator
+      - --rpc-port=9933
+      - --rpc-cors=all
+      - --rpc-methods=unsafe
+      - --rpc-external
+      - --prometheus-port=9615
+      - --prometheus-external
+      - --port=30334
+      - --telemetry-url=wss://telemetry.polkadot.io/submit/ 0
+      image: parity/polkadot:stable
+      imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Validator shutting down gracefully..."
+              # Allow time for block finalization
+              sleep 30
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: rpc
+          scheme: HTTP
+        initialDelaySeconds: 60
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 1
+      name: validator
+      ports:
+      - containerPort: 30334
+        name: p2p
+        protocol: TCP
+      - containerPort: 9933
+        name: rpc
+        protocol: TCP
+      - containerPort: 9615
+        name: prometheus
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: rpc
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /data
+        name: chain-data
+      - mountPath: /keystore
+        name: chain-data
+        subPath: keystore
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+    - image: haproxy:2.9-alpine
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        tcpSocket:
+          port: 30333
+        timeoutSeconds: 1
+      name: haproxy
+      ports:
+      - containerPort: 30333
+        hostPort: 30333
+        name: p2p-proxy
+        protocol: TCP
+      - containerPort: 8404
+        name: stats
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        successThreshold: 1
+        tcpSocket:
+          port: 30333
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          add:
+          - NET_BIND_SERVICE
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsGroup: 99
+        runAsNonRoot: true
+        runAsUser: 99
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+        name: haproxy-config
+        readOnly: true
+        subPath: haproxy.cfg
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    hostname: validator-001-0
+    initContainers:
+    - command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+
+        # Determine chain directory name based on chain parameter
+        case "westend" in
+          kusama) CHAIN_DIR="ksmcc3" ;;
+          polkadot) CHAIN_DIR="polkadot" ;;
+          westend) CHAIN_DIR="westend2" ;;
+          *) CHAIN_DIR="westend" ;;
+        esac
+
+        NETWORK_DIR="/data/chains/${CHAIN_DIR}/network"
+        KEY_FILE="${NETWORK_DIR}/secret_ed25519"
+
+        if [ -f "$KEY_FILE" ]; then
+          echo "Node key already exists at $KEY_FILE, skipping generation"
+          exit 0
+        fi
+
+        echo "Generating node identity key..."
+        mkdir -p "$NETWORK_DIR"
+
+        # Generate the node key
+        polkadot key generate-node-key --file "$KEY_FILE"
+
+        echo "Node key generated successfully at $KEY_FILE"
+
+        # Print the peer ID for reference (useful for setting up reserved peers)
+        echo "Peer ID:"
+        polkadot key inspect-node-key --file "$KEY_FILE"
+      image: parity/polkadot:stable
+      imagePullPolicy: IfNotPresent
+      name: generate-node-key
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /data
+        name: chain-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+    - command:
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /keystore
+        touch /keystore/.initialized
+      image: busybox:latest
+      imagePullPolicy: Always
+      name: prepare-keystore
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /keystore
+        name: chain-data
+        subPath: keystore
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+    nodeName: kusama-validators-worker-fsn1-1
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    subdomain: validator-001
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: chain-data
+      persistentVolumeClaim:
+        claimName: chain-data-validator-001-0
+    - configMap:
+        defaultMode: 420
+        name: validator-001-haproxy
+      name: haproxy-config
+    - name: kube-api-access-kcj4c
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-04T14:41:31Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-04T14:41:35Z"
+      observedGeneration: 1
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-04T14:41:24Z"
+      message: 'containers with unready status: [validator]'
+      observedGeneration: 1
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-04T14:41:24Z"
+      message: 'containers with unready status: [validator]'
+      observedGeneration: 1
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-04T14:41:24Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 50m
+        memory: 64Mi
+      containerID: containerd://8d7c20a02262d0af17ee64b497303f55225a4757755e8fe993cd355d3f25c02b
+      image: docker.io/library/haproxy:2.9-alpine
+      imageID: docker.io/library/haproxy@sha256:3e29449a6beed63262e36104adf531b4e41b359f61937303f5ea8607987b3748
+      lastState: {}
+      name: haproxy
+      ready: true
+      resources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2026-02-04T14:41:39Z"
+      user:
+        linux:
+          gid: 99
+          supplementalGroups:
+          - 99
+          uid: 99
+      volumeMounts:
+      - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+        name: haproxy-config
+        readOnly: true
+        recursiveReadOnly: Disabled
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+        recursiveReadOnly: Disabled
+    - allocatedResources:
+        cpu: 500m
+        memory: 2Gi
+      containerID: containerd://0d211cd46d8936bb38f67b1129bb264ce5d269a04359e9992817fd1a8f2cd6ce
+      image: docker.io/parity/polkadot:stable
+      imageID: docker.io/parity/polkadot@sha256:67da8a3fd2118a6bb5900a65245eab1e8e9631d8b842bf1e96eaff25e4a0c418
+      lastState: {}
+      name: validator
+      ready: false
+      resources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2026-02-04T14:41:35Z"
+      user:
+        linux:
+          gid: 1000
+          supplementalGroups:
+          - 1000
+          uid: 1000
+      volumeMounts:
+      - mountPath: /data
+        name: chain-data
+      - mountPath: /keystore
+        name: chain-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 10.1.0.2
+    hostIPs:
+    - ip: 10.1.0.2
+    initContainerStatuses:
+    - containerID: containerd://8c200f6911019105d26fdaf79fd5d717951c86492cc13f78e8af04b40f27c328
+      image: docker.io/parity/polkadot:stable
+      imageID: docker.io/parity/polkadot@sha256:67da8a3fd2118a6bb5900a65245eab1e8e9631d8b842bf1e96eaff25e4a0c418
+      lastState: {}
+      name: generate-node-key
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: false
+      state:
+        terminated:
+          containerID: containerd://8c200f6911019105d26fdaf79fd5d717951c86492cc13f78e8af04b40f27c328
+          exitCode: 0
+          finishedAt: "2026-02-04T14:41:30Z"
+          reason: Completed
+          startedAt: "2026-02-04T14:41:30Z"
+      user:
+        linux:
+          gid: 1000
+          supplementalGroups:
+          - 1000
+          uid: 1000
+      volumeMounts:
+      - mountPath: /data
+        name: chain-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+        recursiveReadOnly: Disabled
+    - containerID: containerd://54ebdd7f2b15eaf30e7cc0866bdca8156709c81e3f150a7762b7a858ca645673
+      image: docker.io/library/busybox:latest
+      imageID: docker.io/library/busybox@sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f
+      lastState: {}
+      name: prepare-keystore
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: false
+      state:
+        terminated:
+          containerID: containerd://54ebdd7f2b15eaf30e7cc0866bdca8156709c81e3f150a7762b7a858ca645673
+          exitCode: 0
+          finishedAt: "2026-02-04T14:41:34Z"
+          reason: Completed
+          startedAt: "2026-02-04T14:41:34Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          - 10
+          uid: 0
+      volumeMounts:
+      - mountPath: /keystore
+        name: chain-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kcj4c
+        readOnly: true
+        recursiveReadOnly: Disabled
+    observedGeneration: 1
+    phase: Running
+    podIP: 10.42.1.16
+    podIPs:
+    - ip: 10.42.1.16
+    qosClass: Burstable
+    startTime: "2026-02-04T14:41:24Z"
+kind: List
+metadata:
+  resourceVersion: ""

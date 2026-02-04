@@ -32,17 +32,30 @@ node:
 # Sync configuration - speeds up initial sync dramatically
 sync:
   # Sync mode: full, fast, warp
-  # - warp: Fastest! Downloads finality proofs (~minutes)
-  # - fast: Downloads recent blocks
+  # - warp: Fastest! Downloads finality proofs (~10-15 minutes)
+  # - fast: Downloads recent blocks (~1-2 hours)
   # - full: Downloads all blocks (slowest, days)
   mode: warp
 
   # Database snapshot restore (optional, for even faster startup)
+  # Recommended for production deployments to minimize downtime
   snapshot:
     enabled: false
-    # URL from polkashots.io, stakeworld.io, etc.
+    
+    # Snapshot URL - choose a provider based on your location
+    # Kusama snapshots:
+    #   - Polkashots (Global CDN): https://ksm-rocksdb.polkashots.io/snapshot
+    #   - Stakeworld (EU): https://snapshots.stakeworld.io/kusama/kusama-latest.tar.lz4
+    # Polkadot snapshots:
+    #   - Polkashots: https://dot-rocksdb.polkashots.io/snapshot
+    # Westend snapshots:
+    #   - Polkashots: https://wnd-rocksdb.polkashots.io/snapshot
     url: ""
-    # Compression: lz4 or gz
+    
+    # Compression format: lz4, zstd, or gz
+    # - lz4: Fastest decompression (recommended)
+    # - zstd: Good balance of speed and size
+    # - gz: Slowest but most compatible
     compression: lz4
 
 # Resource allocation

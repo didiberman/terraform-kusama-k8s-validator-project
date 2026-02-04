@@ -12,3 +12,9 @@ chain: westend
 
 # Storage size
 storageSize: 50Gi
+
+# Snapshot restore (optional - speeds up initial sync from days to minutes)
+# Uncomment to enable:
+# snapshotEnabled: true
+# snapshotUrl: "https://wnd-rocksdb.polkashots.io/snapshot"
+# snapshotCompression: lz4

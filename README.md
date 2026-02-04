@@ -143,6 +143,7 @@ Then submit `session.setKeys(keys, 0x)` from your controller account on [polkado
     ├── generate-validator.sh  # Create single validator config
     ├── batch-generate-validators.sh # Bulk create validators
     ├── update-accounts.sh     # Mass-update keys from CSV
+    ├── enable-snapshot.sh     # Enable snapshot restore for validator
     └── rotate-keys.sh         # Helper for key rotation
 ```
 
@@ -153,47 +154,80 @@ Then submit `session.setKeys(keys, 0x)` from your controller account on [polkado
 | Add 1 validator | `./scripts/generate-validator.sh validator-XXX` |
 | Add N validators | `./scripts/batch-generate-validators.sh N` |
 | Remove validator | `git rm validators/validator-XXX.yaml && git push` |
+| Enable snapshot | `./scripts/enable-snapshot.sh validator-XXX kusama` |
 | Rotate keys | `./scripts/rotate-keys.sh validator-XXX` |
 
 ## Fast Sync Options
 
 ### Warp Sync (Default - Recommended)
 
-Validators use **warp sync** by default, which syncs in ~10 minutes instead of days:
+Validators use **warp sync** by default, which syncs in ~10-15 minutes instead of days:
 
 ```yaml
-# In values.yaml or validator config
-sync:
-  mode: warp  # Options: warp, fast, full
+# In validator YAML
+chain: kusama
+# Warp sync is enabled by default
 ```
 
 **How it works:**
 1. Downloads GRANDPA finality proofs (not all blocks)
 2. Fetches latest state directly
-3. Validator ready in minutes
+3. Validator ready in 10-15 minutes
 
-### Snapshot Restore (Optional)
+**Sync times by mode:**
+- `warp`: ~10-15 minutes (default)
+- `fast`: ~1-2 hours
+- `full`: 2-7 days (not recommended)
 
-For even faster startup, pre-download a database snapshot:
+### Snapshot Restore (Optional - Even Faster!)
 
+For production deployments or when you need validators online immediately, use database snapshots:
+
+**Enable for a single validator:**
+```bash
+./scripts/enable-snapshot.sh validator-001 kusama
+git add validators/validator-001.yaml
+git commit -m "Enable snapshot for validator-001"
+git push
+```
+
+**Or manually edit the validator YAML:**
 ```yaml
-sync:
-  mode: warp
-  snapshot:
-    enabled: true
-    url: "https://ksm-rocksdb.polkashots.io/snapshot"
-    compression: lz4
+# validators/validator-001.yaml
+name: validator-001
+chain: kusama
+storageSize: 500Gi
+
+# Enable snapshot restore
+snapshotEnabled: true
+snapshotUrl: "https://ksm-rocksdb.polkashots.io/snapshot"
+snapshotCompression: lz4
 ```
 
 **Snapshot providers:**
-- [polkashots.io](https://polkashots.io) - Daily snapshots
-- [stakeworld.io](https://stakeworld.io/docs/snapshots) - Fast mirrors
+- **Polkashots** (Global CDN, recommended): 
+  - Kusama: `https://ksm-rocksdb.polkashots.io/snapshot`
+  - Polkadot: `https://dot-rocksdb.polkashots.io/snapshot`
+  - Westend: `https://wnd-rocksdb.polkashots.io/snapshot`
+- **Stakeworld** (EU mirrors):
+  - Kusama: `https://snapshots.stakeworld.io/kusama/kusama-latest.tar.lz4`
 
 **How it works:**
-1. Init container downloads snapshot before validator starts
-2. Extracts to `/data` volume
+1. InitContainer downloads snapshot before validator starts
+2. Extracts database to persistent volume (~10-30 minutes)
 3. Validator starts with pre-synced database
-4. Skips download if database already exists
+4. Skips download on subsequent restarts (checks if DB exists)
+
+**Compression formats:**
+- `lz4`: Fastest decompression (recommended)
+- `zstd`: Good balance of speed and size
+- `gz`: Slowest but most compatible
+
+**Benefits:**
+- Validator ready in ~15-45 minutes total (download + warp sync)
+- Reduces initial sync load on network
+- Predictable startup times for production
+- Database verified before validator starts
 
 ## Session Key Generation
 

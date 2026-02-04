@@ -35,6 +35,12 @@ chain: westend
 
 # Storage size
 storageSize: "100Gi"
+
+# Snapshot restore (optional - speeds up initial sync)
+# Uncomment to enable fast startup:
+# snapshotEnabled: true
+# snapshotUrl: "https://wnd-rocksdb.polkashots.io/snapshot"
+# snapshotCompression: lz4
 EOF
 
 echo "Created: $OUTPUT_FILE"
