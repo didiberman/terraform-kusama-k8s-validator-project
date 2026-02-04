@@ -14,9 +14,6 @@ spec:
     - name: rpc
       port: {{ .Values.service.rpcPort }}
       targetPort: rpc
-    - name: ws
-      port: {{ .Values.service.wsPort }}
-      targetPort: ws
     - name: prometheus
       port: {{ .Values.service.prometheusPort }}
       targetPort: prometheus
@@ -24,7 +21,8 @@ spec:
     app.kubernetes.io/name: kusama-validator
     app.kubernetes.io/instance: {{ .Values.validatorName }}
 ---
-{{- if .Values.p2pNodePort.enabled }}
+{{- if and .Values.p2pNodePort.enabled (not .Values.haproxy.enabled) }}
+# Legacy NodePort for P2P (only when HAProxy is disabled)
 apiVersion: v1
 kind: Service
 metadata:
@@ -43,5 +41,25 @@ spec:
       {{- end }}
   selector:
     app.kubernetes.io/name: kusama-validator
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+{{- end }}
+---
+{{- if .Values.haproxy.enabled }}
+# HAProxy stats service for Prometheus scraping
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.validatorName }}-haproxy-stats
+  labels:
+    app.kubernetes.io/name: kusama-validator-haproxy
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: stats
+      port: 8404
+      targetPort: stats
+  selector:
+    app.kubernetes.io/name: kusama-validator-haproxy
     app.kubernetes.io/instance: {{ .Values.validatorName }}
 {{- end }}

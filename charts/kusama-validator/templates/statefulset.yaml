@@ -83,11 +83,9 @@ spec:
             - "--validator"
             {{- end }}
             - "--rpc-port=9933"
-            - "--ws-port=9944"
             - "--rpc-cors=all"
             - "--rpc-methods={{ .Values.node.rpcMethods }}"
             - "--rpc-external"
-            - "--ws-external"
             - "--prometheus-port=9615"
             - "--prometheus-external"
             {{- if .Values.node.telemetryUrl }}
@@ -99,9 +97,6 @@ spec:
               protocol: TCP
             - name: rpc
               containerPort: 9933
-              protocol: TCP
-            - name: ws
-              containerPort: 9944
               protocol: TCP
             - name: prometheus
               containerPort: 9615

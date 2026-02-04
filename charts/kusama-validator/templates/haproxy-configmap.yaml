@@ -1,0 +1,64 @@
+{{- if .Values.haproxy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.validatorName }}-haproxy
+  labels:
+    app.kubernetes.io/name: kusama-validator-haproxy
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+data:
+  haproxy.cfg: |
+    global
+        log stdout format raw local0 info
+        maxconn {{ .Values.haproxy.rateLimit.maxConnections }}
+        # Run as non-root
+        user haproxy
+        group haproxy
+
+    defaults
+        log     global
+        mode    tcp
+        option  tcplog
+        option  dontlognull
+        timeout connect 5s
+        timeout client  60s
+        timeout server  60s
+        # Retry failed connections
+        retries 3
+
+    # Frontend: Accept P2P connections from internet
+    frontend p2p_frontend
+        bind *:30333
+        default_backend p2p_backend
+
+        # Rate limiting using stick-tables
+        # Track connections per source IP
+        stick-table type ip size 100k expire 30s store conn_cur,conn_rate(1s)
+        tcp-request connection track-sc0 src
+
+        # Reject if too many concurrent connections from single IP
+        tcp-request connection reject if { sc0_conn_cur gt {{ .Values.haproxy.rateLimit.maxConnectionsPerIP }} }
+
+        # Reject if connection rate too high from single IP
+        tcp-request connection reject if { sc0_conn_rate gt {{ .Values.haproxy.rateLimit.connectionsPerSecond }} }
+
+        # Log rejected connections
+        tcp-request connection silent-drop if { sc0_conn_cur gt {{ .Values.haproxy.rateLimit.maxConnectionsPerIP }} } or { sc0_conn_rate gt {{ .Values.haproxy.rateLimit.connectionsPerSecond }} }
+
+    # Backend: Route to validator P2P service
+    backend p2p_backend
+        balance roundrobin
+        option tcp-check
+
+        # Health check: TCP connect to P2P port
+        server validator {{ .Values.validatorName }}:{{ .Values.service.p2pPort }} check inter {{ .Values.haproxy.healthCheckInterval }}
+
+    # Stats endpoint (internal only)
+    frontend stats
+        bind *:8404
+        mode http
+        http-request use-service prometheus-exporter if { path /metrics }
+        stats enable
+        stats uri /stats
+        stats refresh 10s
+{{- end }}

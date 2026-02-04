@@ -35,13 +35,8 @@ echo "=== K3s Control Plane Ready ==="
 # Install Helm
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-# Install ArgoCD
-echo "=== Installing ArgoCD ==="
-kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# Note: ArgoCD is now installed via Ansible Bootstrap
 
-# Wait for ArgoCD to be ready
-kubectl rollout status deployment argocd-server -n argocd --timeout=300s
 
 # Install Sealed Secrets
 echo "=== Installing Sealed Secrets ==="

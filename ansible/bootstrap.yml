@@ -15,6 +15,33 @@
         msg: "Please provide hcloud_token via -e 'hcloud_token=...'"
       when: hcloud_token | length == 0
 
+    - name: Create argocd namespace
+      kubernetes.core.k8s:
+        name: argocd
+        api_version: v1
+        kind: Namespace
+        state: present
+        validate_certs: false
+
+    - name: Install ArgoCD Manifests
+      command: >
+        kubectl apply -n argocd --server-side 
+        -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+
+    - name: Wait for ArgoCD Server to be ready
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: argocd-server
+        namespace: argocd
+      register: argocd_deploy
+      until:
+        - argocd_deploy.resources | length > 0
+        - argocd_deploy.resources[0].status.readyReplicas | default(0) > 0
+      retries: 60
+      delay: 10
+
     - name: Create kube-system namespace
       kubernetes.core.k8s:
         name: kube-system
@@ -58,11 +85,39 @@
           stringData:
             admin-password: "{{ grafana_password }}"
 
+    - name: Apply ArgoCD Monitoring Stack
+      kubernetes.core.k8s:
+        state: present
+        validate_certs: false
+        src: "{{ playbook_dir }}/../argocd/monitoring.yaml"
+
+    - name: Apply Grafana Dashboards ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        validate_certs: false
+        src: "{{ playbook_dir }}/../argocd/dashboard-configmap.yaml"
+
     - name: Apply ArgoCD ApplicationSet
       kubernetes.core.k8s:
         state: present
         validate_certs: false
         src: "{{ playbook_dir }}/../argocd/applicationset.yaml"
+
+    - name: Wait for Prometheus CRDs (PrometheusRule)
+      kubernetes.core.k8s_info:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: prometheusrules.monitoring.coreos.com
+      register: prometheus_crd
+      until: prometheus_crd.resources | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Apply Prometheus Alerts
+      kubernetes.core.k8s:
+        state: present
+        validate_certs: false
+        src: "{{ playbook_dir }}/../argocd/alerts.yaml"
 
     - name: Get ArgoCD Admin Password
       kubernetes.core.k8s_info:

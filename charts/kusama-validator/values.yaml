@@ -65,13 +65,42 @@ service:
   type: ClusterIP
   p2pPort: 30333
   rpcPort: 9933
-  wsPort: 9944
   prometheusPort: 9615
 
-# Expose P2P externally
+# P2P exposure configuration
+# When haproxy.enabled=true, P2P goes through HAProxy
+# When haproxy.enabled=false, uses NodePort directly (legacy)
 p2pNodePort:
+  enabled: false  # Disabled when using HAProxy
+  port: 30333
+
+# HAProxy reverse proxy for P2P traffic
+haproxy:
   enabled: true
-  port: 30333 # Will be auto-assigned if empty
+  image:
+    repository: haproxy
+    tag: "2.9-alpine"
+    pullPolicy: IfNotPresent
+  # Rate limiting
+  rateLimit:
+    # Max new connections per second per IP
+    connectionsPerSecond: 10
+    # Max concurrent connections per IP
+    maxConnectionsPerIP: 50
+    # Total max connections
+    maxConnections: 2000
+  # TCP health check interval (ms)
+  healthCheckInterval: 5000
+  # Resources for HAProxy pods
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+  # Expose via hostPort on each node
+  hostPort: 30333
 
 # Session keys (managed via Sealed Secrets)
 sessionKeys:

@@ -1,18 +1,34 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: validator-deny-ingress
-  namespace: validators
+  name: {{ .Values.validatorName }}-network-policy
+  labels:
+    app.kubernetes.io/name: kusama-validator
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
 spec:
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Values.validatorName }}
   policyTypes:
   - Ingress
   ingress:
-  # Allow P2P traffic (validator to validator)
-  - ports:
+  # Allow P2P traffic from HAProxy pods
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kusama-validator-haproxy
+    ports:
     - protocol: TCP
       port: 30333
-  # Allow Prometheus scraping
+  # Allow P2P traffic between validators (internal gossip)
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kusama-validator
+    ports:
+    - protocol: TCP
+      port: 30333
+  # Allow Prometheus scraping from monitoring namespace
   - from:
     - namespaceSelector:
         matchLabels:
@@ -20,11 +36,46 @@ spec:
     ports:
     - protocol: TCP
       port: 9615
-  # Allow RPC only from within the cluster (or specifc namespaces if needed)
+  # Allow RPC only from within the namespace (internal access)
   - from:
     - podSelector: {}
     ports:
     - protocol: TCP
       port: 9933
+---
+{{- if .Values.haproxy.enabled }}
+# Network policy for HAProxy pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.validatorName }}-haproxy-policy
+  labels:
+    app.kubernetes.io/name: kusama-validator-haproxy
+    app.kubernetes.io/instance: {{ .Values.validatorName }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kusama-validator-haproxy
+      app.kubernetes.io/instance: {{ .Values.validatorName }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow P2P from anywhere (external internet)
+  - ports:
     - protocol: TCP
-      port: 9944
+      port: 30333
+  # Allow stats/metrics from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8404
+  # Allow stats access from within namespace
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8404
+{{- end }}
