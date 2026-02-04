@@ -64,8 +64,10 @@ spec:
               mkdir -p /keystore
               touch /keystore/.initialized
           volumeMounts:
-            - name: keystore
+            - name: chain-data
               mountPath: /keystore
+              subPath: keystore
+
         {{- end }}
       containers:
         - name: validator

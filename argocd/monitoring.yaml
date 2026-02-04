@@ -44,7 +44,7 @@ spec:
           # Load dashboards from ConfigMaps automatically
           # This creates a volume. We'll stick to just this.
           dashboardsConfigMaps:
-            kusama: kusama-validator-dashboard
+            kusama-dashboard: kusama-validator-dashboard
 
           
           dashboards:
