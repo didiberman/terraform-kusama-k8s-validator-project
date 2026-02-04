@@ -1,0 +1,14 @@
+# Validator: validator-001
+# Generated: 2026-02-04T07:18:42.086096Z
+
+name: validator-001
+
+# Accounts
+stashAccount: "STASH_ACCOUNT_FOR_validator-001"
+controllerAccount: "CONTROLLER_ACCOUNT_FOR_validator-001"
+
+# Network
+chain: westend
+
+# Storage size
+storageSize: 100Gi
