@@ -48,8 +48,8 @@ sync:
 # Resource allocation
 resources:
   requests:
-    cpu: "4"
-    memory: "8Gi"
+    cpu: "500m"
+    memory: "2Gi"
   limits:
     cpu: "8"
     memory: "16Gi"
@@ -57,7 +57,7 @@ resources:
 # Persistent storage for chain data
 persistence:
   enabled: true
-  size: 500Gi
+  size: 50Gi
   storageClass: "" # Use default
 
 # Service configuration
