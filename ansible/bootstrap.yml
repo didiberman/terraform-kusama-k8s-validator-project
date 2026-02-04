@@ -1,0 +1,92 @@
+---
+- name: Bootstrap Cluster Secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # Default values (override with -e "hcloud_token=... grafana_password=...")
+    hcloud_token: ""
+    grafana_password: "admin"
+    network_name: "kusama-validators-network"
+
+  tasks:
+    - name: Fail if hcloud_token is missing
+      fail:
+        msg: "Please provide hcloud_token via -e 'hcloud_token=...'"
+      when: hcloud_token | length == 0
+
+    - name: Create kube-system namespace
+      kubernetes.core.k8s:
+        name: kube-system
+        api_version: v1
+        kind: Namespace
+        state: present
+        validate_certs: false
+
+    - name: Create Hetzner Cloud Secret
+      kubernetes.core.k8s:
+        state: present
+        validate_certs: false
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: hetzner-cloud
+            namespace: kube-system
+          stringData:
+            token: "{{ hcloud_token }}"
+            network: "{{ network_name }}"
+
+    - name: Create monitoring namespace
+      kubernetes.core.k8s:
+        name: monitoring
+        api_version: v1
+        kind: Namespace
+        state: present
+        validate_certs: false
+
+    - name: Create Grafana Admin Secret
+      kubernetes.core.k8s:
+        state: present
+        validate_certs: false
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: grafana-admin
+            namespace: monitoring
+          stringData:
+            admin-password: "{{ grafana_password }}"
+
+    - name: Apply ArgoCD ApplicationSet
+      kubernetes.core.k8s:
+        state: present
+        validate_certs: false
+        src: "{{ playbook_dir }}/../argocd/applicationset.yaml"
+
+    - name: Get ArgoCD Admin Password
+      kubernetes.core.k8s_info:
+        kind: Secret
+        name: argocd-initial-admin-secret
+        namespace: argocd
+        validate_certs: false
+      register: argocd_secret
+      until: argocd_secret.resources | length > 0
+      retries: 20
+      delay: 5
+
+    - name: Set Password Fact
+      set_fact:
+        argocd_password: "{{ argocd_secret.resources[0].data.password | b64decode }}"
+
+    - name: Display Success Message
+      debug:
+        msg:
+          - "------------------------------------------------------------"
+          - "Secrets bootstrapped and ArgoCD ApplicationSet applied!"
+          - ""
+          - "ARGO CD ACCESS DETAILS:"
+          - "URL: https://localhost:8080 (requires port-forward)"
+          - "Username: admin"
+          - "Password: {{ argocd_password }}"
+          - "------------------------------------------------------------"

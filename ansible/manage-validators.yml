@@ -1,0 +1,47 @@
+---
+- name: Manage Validators (Batch)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    validator_count: 1
+    start_index: 1
+    chain: westend
+    auto_git: false
+    accounts_csv: ""
+
+  tasks:
+    - name: Load accounts from CSV if provided
+      community.general.read_csv:
+        path: "{{ accounts_csv }}"
+        key: name
+      register: csv_accounts
+      when: accounts_csv | length > 0
+      failed_when: false # Allow missing CSV to proceed with placeholders
+
+    - name: Ensure validators directory exists
+      file:
+        path: "../validators"
+        state: directory
+
+    - name: Generate Validator files
+      template:
+        src: validator.yaml.j2
+        dest: "../validators/validator-{{ '%03d' | format(item) }}.yaml"
+      vars:
+        current_name: "validator-{{ '%03d' | format(item) }}"
+        validator_name: "{{ current_name }}"
+        stash_account: "{{ (csv_accounts.dict[current_name].stash) if (csv_accounts is defined and csv_accounts.dict is defined and current_name in csv_accounts.dict) else 'STASH_ACCOUNT_FOR_' ~ current_name }}"
+        controller_account: "{{ (csv_accounts.dict[current_name].controller) if (csv_accounts is defined and csv_accounts.dict is defined and current_name in csv_accounts.dict) else 'CONTROLLER_ACCOUNT_FOR_' ~ current_name }}"
+        storage_size: "{{ '100Gi' if chain == 'westend' else '500Gi' }}"
+      loop: "{{ range(start_index | int, (start_index | int + validator_count | int)) | list }}"
+
+    - name: Git Commit and Push
+      shell: |
+        git add ../validators/*.yaml
+        git commit -m "Scale validators to {{ validator_count }} on {{ chain }}"
+        git push
+      when: auto_git | bool
+      register: git_push
+      changed_when: "'nothing to commit' not in git_push.stdout"
+      failed_when: false # Don't fail if no changes or git issues, just warn

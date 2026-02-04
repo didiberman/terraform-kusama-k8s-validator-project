@@ -1,6 +1,6 @@
 # Copy this file to terraform.tfvars and fill in your values
 
-hcloud_token = "your-hetzner-api-token"
+
 
 cluster_name = "kusama-validators"
 

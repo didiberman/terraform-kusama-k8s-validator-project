@@ -13,7 +13,7 @@ spec:
   generators:
     # Git file generator - reads all validator configs
     - git:
-        repoURL: https://github.com/yadid/terraform-kusama-k8s-validator-project.git # TODO: Verify URL
+        repoURL: https://github.com/didiberman/terraform-kusama-k8s-validator-project.git
         revision: main
         files:
           - path: "validators/*.yaml"
@@ -28,7 +28,7 @@ spec:
       project: default
 
       source:
-        repoURL: https://github.com/yadid/terraform-kusama-k8s-validator-project.git # TODO: Verify URL
+        repoURL: https://github.com/didiberman/terraform-kusama-k8s-validator-project.git
         targetRevision: main
         path: charts/kusama-validator
         helm:

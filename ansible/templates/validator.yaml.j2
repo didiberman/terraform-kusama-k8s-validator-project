@@ -1,0 +1,14 @@
+# Validator: {{ validator_name }}
+# Generated: {{ ansible_date_time.iso8601_micro }}
+
+name: {{ validator_name }}
+
+# Accounts
+stashAccount: "{{ stash_account | default('STASH_ACCOUNT_FOR_' ~ validator_name) }}"
+controllerAccount: "{{ controller_account | default('CONTROLLER_ACCOUNT_FOR_' ~ validator_name) }}"
+
+# Network
+chain: {{ chain }}
+
+# Storage size
+storageSize: {{ storage_size }}

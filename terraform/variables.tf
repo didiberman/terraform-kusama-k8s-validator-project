@@ -1,9 +1,4 @@
-# Hetzner API Token
-variable "hcloud_token" {
-  type        = string
-  description = "Hetzner Cloud API token"
-  sensitive   = true
-}
+
 
 # Cluster Configuration
 variable "cluster_name" {
@@ -28,13 +23,13 @@ variable "initial_workers_per_location" {
 variable "control_plane_server_type" {
   type        = string
   description = "Hetzner server type for control plane"
-  default     = "cpx21" # 3 vCPU, 4GB RAM - sufficient for K3s control plane
+  default     = "cpx32" # User requested CPX32 AMD
 }
 
 variable "worker_server_type" {
   type        = string
   description = "Hetzner server type for worker nodes"
-  default     = "cpx41" # 8 vCPU, 16GB RAM - good for validators
+  default     = "cpx32" # User requested CPX32 AMD
 }
 
 # K3s Options

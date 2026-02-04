@@ -6,7 +6,11 @@ terraform {
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "~> 1.45"
+      version = "~> 1.48"
+    }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
     }
     local = {
       source  = "hashicorp/local"
@@ -19,8 +23,18 @@ terraform {
   }
 }
 
+provider "google" {
+  project = "didiberman"
+  region  = "us-central1"
+}
+
+data "google_secret_manager_secret_version" "hetzner_key" {
+  secret  = "hetzner_key"
+  version = "latest"
+}
+
 provider "hcloud" {
-  token = var.hcloud_token
+  token = data.google_secret_manager_secret_version.hetzner_key.secret_data
 }
 
 # SSH Key for node access
@@ -89,11 +103,18 @@ resource "hcloud_firewall" "k3s" {
     source_ips = var.allowed_ips
   }
 
-  # K3s metrics
+  # Allow all internal cluster traffic
   rule {
     direction  = "in"
     protocol   = "tcp"
-    port       = "10250"
+    port       = "any"
+    source_ips = ["10.0.0.0/8"]
+  }
+
+  rule {
+    direction  = "in"
+    protocol   = "udp"
+    port       = "any"
     source_ips = ["10.0.0.0/8"]
   }
 
@@ -105,13 +126,6 @@ resource "hcloud_firewall" "k3s" {
     source_ips = ["0.0.0.0/0", "::/0"]
   }
 
-  # Prometheus metrics
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "9615"
-    source_ips = ["10.0.0.0/8"]
-  }
 }
 
 # Control Plane Node
@@ -136,7 +150,6 @@ resource "hcloud_server" "control_plane" {
 
   network {
     network_id = hcloud_network.k3s.id
-    ip         = "10.1.0.2"
   }
 
   depends_on = [hcloud_network_subnet.k3s]

@@ -5,10 +5,10 @@ set -euo pipefail
 
 echo "=== Installing K3s Control Plane ==="
 
-# Wait for cloud-init
-cloud-init status --wait
+
 
 # Install K3s server
+# We use the private network interface (enp7s0) for internal cluster traffic
 curl -sfL https://get.k3s.io | sh -s - server \
   --token "${k3s_token}" \
   --cluster-init \
@@ -16,7 +16,13 @@ curl -sfL https://get.k3s.io | sh -s - server \
   --disable servicelb \
   --write-kubeconfig-mode 644 \
   --node-name "${cluster_name}-control-plane" \
+  --flannel-iface enp7s0 \
+  --node-ip $(ip -4 addr show enp7s0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}') \
+  --tls-san $(curl -4s https://ifconfig.me) \
   %{ if taint_control_plane }--node-taint CriticalAddonsOnly=true:NoExecute%{ endif }
+
+
+
 
 # Wait for K3s to be ready
 echo "Waiting for K3s to be ready..."
@@ -32,7 +38,7 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 # Install ArgoCD
 echo "=== Installing ArgoCD ==="
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Wait for ArgoCD to be ready
 kubectl rollout status deployment argocd-server -n argocd --timeout=300s
